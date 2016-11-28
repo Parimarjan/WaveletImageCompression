@@ -1,5 +1,14 @@
 import "regent"
 
+-- FIXME: Add token dependencies
+-- FIXME: Check if order actually matters in the outer while loop?
+-- FIXME: Can x and y things be done completely independently? I don't think
+-- so - but check it by modifiying c++ code.
+
+-- Differences:
+--    He runs on all three channels (RGB) separately.
+--
+
 -- Helper modules to handle PNG files and command line arguments
 local png        = require("png_util")
 local WaveletConfig = require("wavelet_config")
@@ -11,6 +20,7 @@ local cmath = terralib.includec("math.h")
 local PI = cmath.M_PI
 local unistd = terralib.includec("unistd.h")
 
+terra wait_for(x : int) return 1 end
 
 -- Field space for pixels
 -- Should be the only required field because we make changes in place.
@@ -73,12 +83,13 @@ do
     if (x < size_x) then
       r_image[{base+x, y}].value += r_image[{base1+x, y}].value / 2 
     end
-    -- Edge condition.
     
   end
 
   var ts_end = c.legion_get_current_time_in_micros()
   c.printf("Lift x took %.3f sec.\n", (ts_end - ts_start) * 1e-6)
+  -- spurious dependencies.
+  return 1
 end
 
 -- Vertical lifting. Slightly more complicated than Horizontal lifting.
@@ -88,14 +99,13 @@ task liftY(r_image    : region(ispace(int2d), Pixel),
 where
   reads writes(r_image.value)
 do 
-
   var ts_start = c.legion_get_current_time_in_micros()
   c.printf("starting liftY!\n")
   
   var y0 : int32 = r_image.bounds.lo.y
   var x0 : int32 = r_image.bounds.lo.x
   -- I think this should be always true?
-  --assert (y0 == 0 && x0 == 0)
+  --assert (y0 == 0 and x0 == 0)
 
   var size_x : int32 = r_image.bounds.hi.x
   var size_y : int32 = r_image.bounds.hi.y
@@ -133,13 +143,60 @@ do
     for x = 0, size_x, step do
       r_image[base + {x, 0}].value += (r_image[g1base + {x,0}].value + r_image[g2base + {x,0}].value) / 4
     end 
-
   end
 
   var ts_end = c.legion_get_current_time_in_micros()
   c.printf("Lift y took %.3f sec.\n", (ts_end - ts_start) * 1e-6)
+  -- spurious dependencies.
+  return 1
 end
 
+task unliftX(r_image    : region(ispace(int2d), Pixel), 
+          step : int32)
+where
+  reads writes(r_image.value)
+do 
+  var ts_start = c.legion_get_current_time_in_micros()
+  c.printf("starting UNliftX!\n")
+  
+  var size_x : int32 = r_image.bounds.hi.x
+  var size_y : int32 = r_image.bounds.hi.y
+
+  for y = 0, size_y, step do
+    
+    -- just x values will be affected by these here.
+    var base = 0
+    var base1 = base - step
+    var base2 = base + step
+    -- odd loop? Only when step is 1 I guess.
+    
+    var x : int32
+    -- even loop?
+    for x = step*2, size_x - step, step*2 do
+      r_image[{base+x, y}].value -= (r_image[{base1+x, y}].value + r_image[{base2+x, y}].value)/4 
+    end
+    
+    if (x < size_x) then
+      r_image[{base+x, y}].value -= r_image[{base1+x, y}].value / 2 
+    end
+    
+    for x = step, size_x - step, step*2 do
+      r_image[{base+x, y}].value += (r_image[{base1+x, y}].value + r_image[{base2+x, y}].value)/2
+    end
+    
+    -- Edge condition.
+    if (x < size_x) then
+      r_image[{base+x, y}].value += r_image[{base1+x, y}].value 
+    end
+    
+    -- Edge condition. 
+  end
+
+  var ts_end = c.legion_get_current_time_in_micros()
+  c.printf("Lift x took %.3f sec.\n", (ts_end - ts_start) * 1e-6)
+  -- spurious dependencies.
+  return 1
+end
 
 task saveImage(r_image : region(ispace(int2d), Pixel),
                 filename : rawstring)
@@ -150,6 +207,74 @@ do
                      __physical(r_image.value),
                      __fields(r_image.value),
                      r_image.bounds)
+end
+
+task unliftY(r_image    : region(ispace(int2d), Pixel), 
+          step : int32)
+where
+  reads writes(r_image.value)
+do 
+  var ts_start = c.legion_get_current_time_in_micros()
+  c.printf("starting liftY!\n")
+  
+  var y0 : int32 = r_image.bounds.lo.y
+  var x0 : int32 = r_image.bounds.lo.x
+  -- I think this should be always true?
+  --assert (y0 == 0 && x0 == 0)
+
+  var size_x : int32 = r_image.bounds.hi.x
+  var size_y : int32 = r_image.bounds.hi.y
+  
+  for y = step*2, size_y, step*2 do
+    -- exactly same as in lift step
+    var base :int2d = {x0 , y0 + y}
+    var g1base :int2d = {x0, y0 + y - step}
+    var g2base :int2d = g1base 
+    if (y + step) < size_y then 
+      g2base = {x0, y0 + y + step}
+    end
+
+    for x = 0, size_x, step do
+      r_image[base + {x, 0}].value -= ((r_image[g1base + {x,0}].value + r_image[g2base + {x,0}].value) / 4)
+    end 
+  end
+
+  for y = step, size_y, step*2 do 
+    var base :int2d = {x0, y0 + y}
+    -- FIXME: Does this always stay within range?
+    var c1base :int2d = {x0, y0 + y - step}
+    var c2base :int2d = c1base
+    
+    if (y + step) < size_y then 
+      c2base = {x0, y0 + y + step}
+    end
+      
+    -- If we did only a few columns at a time? 
+    for x = 0, size_x, step do
+      r_image[{base.x + x, base.y}].value += (r_image[c1base + {x,0}].value + r_image[c2base + {x,0}].value) / 2
+    end 
+  end
+  
+  var ts_end = c.legion_get_current_time_in_micros()
+  c.printf("Lift y took %.3f sec.\n", (ts_end - ts_start) * 1e-6)
+  -- spurious dependencies.
+  return 1
+end
+
+task printOutImage(r_image: region(ispace(int2d), Pixel))
+where
+  reads(r_image.value)
+do
+  var size_y = r_image.bounds.hi.y  
+  var size_x = r_image.bounds.hi.x
+  
+  for y = 0, size_y, 1 do
+    c.printf("\n")
+    for x = 0, size_x, 1 do
+      c.printf("%d  ", r_image[{x,y}].value) 
+    end
+  end
+  c.printf("finished printing this image\n")
 end
 
 task toplevel()
@@ -169,19 +294,42 @@ task toplevel()
   var size_x : uint32 = r_image.bounds.hi.x
   var size_y : uint32 = r_image.bounds.hi.y
   
+  --printOutImage(r_image)
   -- Want to launch the while loop on each region separately.
+  
+  var token = 0
   while (step < size_x or step < size_y) do
     if (step < size_x) then
-      liftX(r_image, step)
+      token += liftX(r_image, step)
     end
     if (step < size_y) then
-      liftY(r_image, step)
+      token += liftY(r_image, step)
     end
     step = step*2
+    wait_for(token)
   end
 
+  -- Let's do the unlifting to check if it works
+  while (step*2 < size_x or step*2 < size_y) do 
+    step *= 2
+  end
+
+  while (step >=1) do
+    if (step < size_y) then -- vertical lifting 
+      token += unliftY(r_image, step)
+    end
+
+    if (step < size_x) then
+      token += unliftX(r_image, step)
+    end
+    step /= 2
+    wait_for(token)
+  end
+
+  --printOutImage(r_image)
   -- This shouldn't start running until liftX is finished because of the
   -- dependency. 
+  
   saveImage(r_image, config.filename_edge)
 end
 
