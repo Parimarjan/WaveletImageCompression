@@ -1,10 +1,14 @@
 import "regent"
 
--- FIXME: Add token dependencies
+-- FIXME: Remove token dependencies
 -- FIXME: Check if order actually matters in the outer while loop?
 -- FIXME: Can x and y things be done completely independently? I don't think
 -- so - but check it by modifiying c++ code.
+--
+-- FIXME: Because we have two partitions, should we give each num_parallelism number
+-- of partitions, or just divide those in half?
 
+-- FIXME: spmd style programming.
 -- Differences:
 --    He runs on all three channels (RGB) separately.
 --
@@ -68,7 +72,6 @@ do
   --end
 
   for y = r_image.bounds.lo.y, size_y+1, step do
-  --for y =  0, size_y, step do
     
     var base =  r_image.bounds.lo.x
     regentlib.assert(base == 0, "base should always start with 0 in liftX")
@@ -283,9 +286,9 @@ do
   var size_y = r_image.bounds.hi.y  
   var size_x = r_image.bounds.hi.x
   
-  for y = 0, size_y, 1 do
+  for y = 0, size_y, 10 do
     c.printf("\n")
-    for x = 0, size_x, 1 do
+    for x = 0, size_x, 10 do
       c.printf("%d  ", r_image[{x,y}].value) 
     end
   end
@@ -299,14 +302,13 @@ where
 do
   --regentlib.assert(r_image.bounds.lo == r_image.bounds.lo, 'assert failed')
   var low_bounds :int2d = r_image.bounds.lo
-  --c.printf("low bounds, combined: %d, %d; image: %d, %d\n", low_bounds.x, low_bounds.y, r_image.bounds.lo.x, r_image.bounds.lo.y)
-  --c.printf("combined image bounds are : %d, %d. r_image bounds are: %d, %d\n", r_image.bounds.hi.x, r_image.bounds.hi.y, r_image.bounds.hi.x, r_image.bounds.hi.y)
+  --c.printf("low bounds, combined: %d, %d; image: %d, %d\n", low_bounds.x, low_bounds.y, r_mini_image.bounds.lo.x, r_mini_image.bounds.lo.y)
+  --c.printf("combined image bounds are : %d, %d. r_image bounds are: %d, %d\n", r_image.bounds.hi.x, r_image.bounds.hi.y, r_mini_image.bounds.hi.x, r_mini_image.bounds.hi.y)
    
   for p in r_mini_image do
       var index : int2d = low_bounds + p
       r_image[index].value = r_mini_image[p].value
   end
-  c.printf("fill image ending\n")
 end
 
 task sequential_fill_image(r_image : region(ispace(int2d), Pixel),
@@ -334,7 +336,7 @@ task toplevel()
   config:initialize_from_command()
 
   -- FIX the config file to get this and stuff, but for now this is fine.
-  config.num_parallelism = 2
+  config.num_parallelism = 1
   
   var edge : int32 = 2
   var size_image = png.get_image_size(config.filename_image)
@@ -351,19 +353,16 @@ task toplevel()
   sequential_fill_image(r_image, r_mini_image, edge)
   -- Let's do it in regent style. We will divide the combined image into
   -- color based squares with exact bounds (width and height from size_image)  
-  var coloring = c.legion_domain_point_coloring_create()
-   
-  -- fill it up horizontally and vertically separately.
-  
-  -- are we OBOB perhaps? new_x+size_image.x might be one less than the real
-  -- image....
+  --var coloring = c.legion_domain_point_coloring_create()   
+  --fill it up horizontally and vertically separately.
+ 
   --var color_count :int1d = 0
   --for i = 0, edge, 1 do
     --var new_y :int32 = i*size_image.y
     --for j = 0, edge, 1 do
        --var new_x :int32 = j*size_image.x  
        --c.legion_domain_point_coloring_color_domain(coloring, color_count,
-       --rect2d {{new_x, new_y}, {new_x+size_image.x, new_y + size_image.y}})
+       --rect2d {{new_x, new_y}, {new_x+size_image.x-1, new_y + size_image.y-1}})
        --color_count += 1
     --end
   --end
@@ -376,9 +375,8 @@ task toplevel()
   --for i = 0, edge*edge, 1 do
     --fill_image(p_combined_image[i], r_mini_image)
   --end
-  
+    
   saveImage(r_image, 'original_combined.png')
-  
   -- Should we destroy a partition after we are done using it?
   var step : uint32 = 1
   
@@ -391,49 +389,65 @@ task toplevel()
   
   --printOutImage(r_image)
   -- Want to launch the while loop on each region separately.
-   
+  
+  var x_parallelism = config.num_parallelism
   var x_coloring = c.legion_domain_point_coloring_create()
-  var chunk_height = size_y / config.num_parallelism
+  var chunk_height = size_y / x_parallelism
 
   ---- FIXME: Deal with the case when its not a perfect multiple and stuff.
-  for i = 0, config.num_parallelism, 1 do
+  for i = 0, x_parallelism, 1 do
     var start_y = i*chunk_height
     var end_y = start_y + chunk_height - 1
 
-    if i == config.num_parallelism-1 then
+    if i == x_parallelism-1 then
       end_y = size_y
     end
     c.legion_domain_point_coloring_color_domain(x_coloring, [int1d] (i),rect2d {{0, start_y}, {size_x,end_y}})
   end
 
-  var x_colors = ispace(int1d, config.num_parallelism)
+  var x_colors = ispace(int1d, x_parallelism)
   var p_x_combined_image = partition(disjoint, r_image, x_coloring, x_colors)
-  c.legion_domain_point_coloring_destroy(coloring)
-   
+  c.legion_domain_point_coloring_destroy(x_coloring)
+  
+  var y_parallelism = config.num_parallelism
+  var y_coloring = c.legion_domain_point_coloring_create()
+  var chunk_width = size_x / y_parallelism
+  
+  for i = 0, y_parallelism, 1 do
+    var start_x = i*chunk_width
+    var end_x = start_x + chunk_width - 1
+    if i == y_parallelism-1 then
+      end_x = size_x
+    end
+    c.legion_domain_point_coloring_color_domain(y_coloring, [int1d](i), rect2d{{start_x, 0}, {end_x,size_y}})
+  end
+  var y_colors = ispace(int1d, y_parallelism) 
+  var p_y_combined_image = partition(disjoint, r_image, y_coloring, y_colors)
+  c.legion_domain_point_coloring_destroy(y_coloring)
+  
   var token = 0
 
   while (step < size_x or step < size_y) do
     if (step < size_x) then
       -- Can I do partition.colors? why not?
-      --liftX(r_image, step)
-      for i = 0, config.num_parallelism, 1 do 
-        c.printf("color %d now\n", i)
-        token += liftX(p_x_combined_image[i], step)
-        wait_for(token)
+      for i = 0, x_parallelism, 1 do 
+         liftX(p_x_combined_image[i], step)
       end
     end
 
     if (step < size_y) then
-      token += liftY(r_image, step)
-    end
+      --token += liftY(r_image, step)
+     for i = 0, y_parallelism, 1 do
+       liftY(p_y_combined_image[i], step)
+      end
+     end
     step = step*2
     wait_for(token)
   end
-
+  
   saveImage(r_image, 'lifted_combined.png')
-  
-  -- Let's do the unlifting to check if it works
-  
+
+  -- Let's do the unlifting to check if it works 
   -- Gets step to the highest value so we can run it in reverse....
   while (step*2 < size_x or step*2 < size_y) do 
     step *= 2
@@ -441,19 +455,23 @@ task toplevel()
 
   while (step >=1) do
     if (step < size_y) then -- vertical lifting 
-      token += unliftY(r_image, step)
+      --token += unliftY(r_image, step)
+      for i = 0, y_parallelism, 1 do
+        unliftY(p_y_combined_image[i], step)
+      end
     end
 
     if (step < size_x) then
       --token += unliftX(r_image, step)
-      for i = 0, config.num_parallelism, 1 do 
-        token += unliftX(p_x_combined_image[i], step)
+      for i = 0, x_parallelism, 1 do 
+        unliftX(p_x_combined_image[i], step)
       end
     end
     step /= 2
     wait_for(token)
   end
- 
+  
+
   -- sanity check: what is happening with our massive image.
   saveImage(r_image, 'unlifted_combined.png')
 end
