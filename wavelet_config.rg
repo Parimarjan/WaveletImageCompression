@@ -13,6 +13,7 @@ struct EdgeConfig
   skip_smooth     : bool,
   skip_suppress   : bool,
   threshold       : double,
+  num_parallelism : int32,
 }
 
 local cstring = terralib.includec("string.h")

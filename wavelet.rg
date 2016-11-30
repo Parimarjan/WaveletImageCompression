@@ -57,16 +57,27 @@ do
   
   var size_x : int32 = r_image.bounds.hi.x
   var size_y : int32 = r_image.bounds.hi.y
+  c.printf("low bounds are: %d, %d\n", r_image.bounds.lo.x, r_image.bounds.lo.y)
+  c.printf("hi bounds are %d, %d\n", size_x, size_y)
+  
+  --c.printf("checking values %d vs %d \n", r_image[{
+  -- Note: value of y must change in correspondence with the image bounds here.
+  
+  --for r in r_image do
+    ----c.printf("value at %d, %d is %d\n", r.x,r.y, r_image[r].value)
+  --end
 
-  for y = 0, size_y, step do
+  for y = r_image.bounds.lo.y, size_y+1, step do
+  --for y =  0, size_y, step do
     
-    var base = 0
+    var base =  r_image.bounds.lo.x
+    regentlib.assert(base == 0, "base should always start with 0 in liftX")
     var base1 = base - step
     var base2 = base + step
-    -- odd loop? Only when step is 1 I guess.
     
     -- Add parallelism at this stage. These two loops are just doing
-    -- reductions...
+    -- reductions, especially after step = 2.
+    
     var x : int32
     for x = step, size_x - step, step*2 do
       r_image[{base+x, y}].value -= (r_image[{base1+x, y}].value + r_image[{base2+x, y}].value)/2
@@ -94,7 +105,7 @@ do
   end
 
   var ts_end = c.legion_get_current_time_in_micros()
-  c.printf("Lift x took %.3f sec.\n", (ts_end - ts_start) * 1e-6)
+  --c.printf("Lift x took %.3f sec.\n", (ts_end - ts_start) * 1e-6)
   -- spurious dependencies.
   return 1
 end
@@ -153,7 +164,7 @@ do
   end
 
   var ts_end = c.legion_get_current_time_in_micros()
-  c.printf("Lift y took %.3f sec.\n", (ts_end - ts_start) * 1e-6)
+  --c.printf("Lift y took %.3f sec.\n", (ts_end - ts_start) * 1e-6)
   -- spurious dependencies.
   return 1
 end
@@ -168,13 +179,13 @@ do
   var size_x : int32 = r_image.bounds.hi.x
   var size_y : int32 = r_image.bounds.hi.y
 
-  for y = 0, size_y, step do
+  for y = r_image.bounds.lo.y, size_y+1, step do
     
+  --for y = r_image.bounds.lo.y + 0, size_y, step do
     -- just x values will be affected by these here.
-    var base = 0
+    var base = r_image.bounds.lo.x
     var base1 = base - step
     var base2 = base + step
-    -- odd loop? Only when step is 1 I guess.
     
     var x : int32
     -- even loop?
@@ -195,11 +206,10 @@ do
       r_image[{base+x, y}].value += r_image[{base1+x, y}].value 
     end
     
-    -- Edge condition. 
   end
 
   var ts_end = c.legion_get_current_time_in_micros()
-  c.printf("Lift x took %.3f sec.\n", (ts_end - ts_start) * 1e-6)
+  --c.printf("UnLift x took %.3f sec.\n", (ts_end - ts_start) * 1e-6)
   -- spurious dependencies.
   return 1
 end
@@ -246,7 +256,6 @@ do
 
   for y = step, size_y, step*2 do 
     var base :int2d = {x0, y0 + y}
-    -- FIXME: Does this always stay within range?
     var c1base :int2d = {x0, y0 + y - step}
     var c2base :int2d = c1base
     
@@ -261,7 +270,7 @@ do
   end
   
   var ts_end = c.legion_get_current_time_in_micros()
-  c.printf("Lift y took %.3f sec.\n", (ts_end - ts_start) * 1e-6)
+  --c.printf("Lift y took %.3f sec.\n", (ts_end - ts_start) * 1e-6)
   -- spurious dependencies.
   return 1
 end
@@ -283,38 +292,38 @@ do
   c.printf("finished printing this image\n")
 end
 
-task fill_image(r_combined_image : region(ispace(int2d), Pixel),
-                r_image : region(ispace(int2d), Pixel))
+task fill_image(r_image : region(ispace(int2d), Pixel),
+                r_mini_image : region(ispace(int2d), Pixel))
 where 
-  reads (r_image.value), writes (r_combined_image.value)
+  reads (r_mini_image.value), writes (r_image.value)
 do
-  --regentlib.assert(r_combined_image.bounds.lo == r_image.bounds.lo, 'assert failed')
-  var low_bounds :int2d = r_combined_image.bounds.lo
+  --regentlib.assert(r_image.bounds.lo == r_image.bounds.lo, 'assert failed')
+  var low_bounds :int2d = r_image.bounds.lo
   --c.printf("low bounds, combined: %d, %d; image: %d, %d\n", low_bounds.x, low_bounds.y, r_image.bounds.lo.x, r_image.bounds.lo.y)
-  --c.printf("combined image bounds are : %d, %d. r_image bounds are: %d, %d\n", r_combined_image.bounds.hi.x, r_combined_image.bounds.hi.y, r_image.bounds.hi.x, r_image.bounds.hi.y)
+  --c.printf("combined image bounds are : %d, %d. r_image bounds are: %d, %d\n", r_image.bounds.hi.x, r_image.bounds.hi.y, r_image.bounds.hi.x, r_image.bounds.hi.y)
    
-  for p in r_image do
+  for p in r_mini_image do
       var index : int2d = low_bounds + p
-      r_combined_image[index].value = r_image[p].value
+      r_image[index].value = r_mini_image[p].value
   end
   c.printf("fill image ending\n")
 end
 
-task sequential_fill_image(r_combined_image : region(ispace(int2d), Pixel),
-                r_image : region(ispace(int2d), Pixel),
+task sequential_fill_image(r_image : region(ispace(int2d), Pixel),
+                r_mini_image : region(ispace(int2d), Pixel),
                 edge    : int32)
 where 
-  reads (r_image), writes (r_combined_image)
+  reads (r_mini_image), writes (r_image)
 do
 
   for i = 0, edge, 1 do
-    var new_y :int32 = i*r_image.bounds.hi.y
+    var new_y :int32 = i*r_mini_image.bounds.hi.y
     for j = 0, edge, 1 do
-       var new_x :int32 = j*r_image.bounds.hi.x 
+       var new_x :int32 = j*r_mini_image.bounds.hi.x 
        -- Now, we can fill up the image r_combined with r_image stuff
-       for pixel in r_image do
+       for pixel in r_mini_image do
          var index : int2d = {new_x, new_y} + pixel 
-         r_combined_image[index] = r_image[pixel]
+         r_image[index].value = r_mini_image[pixel].value
        end 
     end
   end
@@ -323,20 +332,23 @@ end
 task toplevel()
   var config : WaveletConfig
   config:initialize_from_command()
+
+  -- FIX the config file to get this and stuff, but for now this is fine.
+  config.num_parallelism = 2
   
   var edge : int32 = 2
   var size_image = png.get_image_size(config.filename_image)
   
-  var size_combined_image = {edge*size_image.x, edge*size_image.x}
+  var size_combined_image = {edge*size_image.x, edge*size_image.y}
 
-  var r_image = region(ispace(int2d, size_image), Pixel) 
-  initialize(r_image, config.filename_image) 
+  var r_mini_image = region(ispace(int2d, size_image), Pixel) 
+  initialize(r_mini_image, config.filename_image) 
   
   -- Now we have the combined image, and we want to fill it up with the same
   -- data as in the original r_image.
   
-  var r_combined_image = region(ispace(int2d, size_combined_image), Pixel) 
-
+  var r_image = region(ispace(int2d, size_combined_image), Pixel) 
+  sequential_fill_image(r_image, r_mini_image, edge)
   -- Let's do it in regent style. We will divide the combined image into
   -- color based squares with exact bounds (width and height from size_image)  
   var coloring = c.legion_domain_point_coloring_create()
@@ -345,26 +357,27 @@ task toplevel()
   
   -- are we OBOB perhaps? new_x+size_image.x might be one less than the real
   -- image....
-  var color_count :int1d = 0
-  for i = 0, edge, 1 do
-    var new_y :int32 = i*size_image.y
-    for j = 0, edge, 1 do
-       var new_x :int32 = j*size_image.x  
-       c.legion_domain_point_coloring_color_domain(coloring, color_count,
-       rect2d {{new_x, new_y}, {new_x+size_image.x, new_y + size_image.y}})
-       color_count += 1
-    end
-  end
+  --var color_count :int1d = 0
+  --for i = 0, edge, 1 do
+    --var new_y :int32 = i*size_image.y
+    --for j = 0, edge, 1 do
+       --var new_x :int32 = j*size_image.x  
+       --c.legion_domain_point_coloring_color_domain(coloring, color_count,
+       --rect2d {{new_x, new_y}, {new_x+size_image.x, new_y + size_image.y}})
+       --color_count += 1
+    --end
+  --end
 
-  var colors = ispace(int1d, edge*edge)
-  var p_combined_image = partition(disjoint, r_combined_image, coloring, colors)
-  c.legion_domain_point_coloring_destroy(coloring)
+  --var colors = ispace(int1d, edge*edge)
+  --var p_combined_image = partition(disjoint, r_image, coloring, colors)
+  --c.legion_domain_point_coloring_destroy(coloring)
   
-  for i = 0, edge*edge, 1 do
-    fill_image(p_combined_image[i], r_image)
-  end
+  ---- Parallelized initialization.
+  --for i = 0, edge*edge, 1 do
+    --fill_image(p_combined_image[i], r_mini_image)
+  --end
   
-  saveImage(r_combined_image, 'original_combined.png')
+  saveImage(r_image, 'original_combined.png')
   
   -- Should we destroy a partition after we are done using it?
   var step : uint32 = 1
@@ -378,40 +391,71 @@ task toplevel()
   
   --printOutImage(r_image)
   -- Want to launch the while loop on each region separately.
-  
+   
+  var x_coloring = c.legion_domain_point_coloring_create()
+  var chunk_height = size_y / config.num_parallelism
+
+  ---- FIXME: Deal with the case when its not a perfect multiple and stuff.
+  for i = 0, config.num_parallelism, 1 do
+    var start_y = i*chunk_height
+    var end_y = start_y + chunk_height - 1
+
+    if i == config.num_parallelism-1 then
+      end_y = size_y
+    end
+    c.legion_domain_point_coloring_color_domain(x_coloring, [int1d] (i),rect2d {{0, start_y}, {size_x,end_y}})
+  end
+
+  var x_colors = ispace(int1d, config.num_parallelism)
+  var p_x_combined_image = partition(disjoint, r_image, x_coloring, x_colors)
+  c.legion_domain_point_coloring_destroy(coloring)
+   
   var token = 0
+
   while (step < size_x or step < size_y) do
     if (step < size_x) then
-      token += liftX(r_combined_image, step)
+      -- Can I do partition.colors? why not?
+      --liftX(r_image, step)
+      for i = 0, config.num_parallelism, 1 do 
+        c.printf("color %d now\n", i)
+        token += liftX(p_x_combined_image[i], step)
+        wait_for(token)
+      end
     end
+
     if (step < size_y) then
-      token += liftY(r_combined_image, step)
+      token += liftY(r_image, step)
     end
     step = step*2
     wait_for(token)
   end
 
-  saveImage(r_combined_image, 'lifted_combined.png')
+  saveImage(r_image, 'lifted_combined.png')
   
   -- Let's do the unlifting to check if it works
+  
+  -- Gets step to the highest value so we can run it in reverse....
   while (step*2 < size_x or step*2 < size_y) do 
     step *= 2
   end
 
   while (step >=1) do
     if (step < size_y) then -- vertical lifting 
-      token += unliftY(r_combined_image, step)
+      token += unliftY(r_image, step)
     end
 
     if (step < size_x) then
-      token += unliftX(r_combined_image, step)
+      --token += unliftX(r_image, step)
+      for i = 0, config.num_parallelism, 1 do 
+        token += unliftX(p_x_combined_image[i], step)
+      end
     end
     step /= 2
     wait_for(token)
   end
  
   -- sanity check: what is happening with our massive image.
-  saveImage(r_combined_image, 'unlifted_combined.png')
+  saveImage(r_image, 'unlifted_combined.png')
 end
 
 regentlib.start(toplevel)
