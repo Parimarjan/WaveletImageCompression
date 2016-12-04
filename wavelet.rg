@@ -336,7 +336,7 @@ task toplevel()
   -- FIX the config file to get this and stuff, but for now this is fine.
   config.num_parallelism = 8
   
-  var edge : int32 = 8
+  var edge : int32 = 4
   var size_image = png.get_image_size(config.filename_image)
   
   var size_combined_image = {edge*size_image.x, edge*size_image.y}
