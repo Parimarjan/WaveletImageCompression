@@ -33,13 +33,6 @@ fspace Pixel
   value      : uint8;    -- value pixel in 8-bit gray scale
 }
 
--- FIXME: Which parameters do we need to provide in comparison to gfxc?
---struct Parameters
---{
-  --step : int32;
-  --size : int2d;
---}
-
 task initialize(r_image : region(ispace(int2d), Pixel),
                 filename : rawstring)
 where
@@ -60,8 +53,6 @@ do
   
   var size_x : int32 = r_image.bounds.hi.x
   var size_y : int32 = r_image.bounds.hi.y
-  c.printf("low bounds are: %d, %d\n", r_image.bounds.lo.x, r_image.bounds.lo.y)
-  c.printf("hi bounds are %d, %d\n", size_x, size_y)
   
   --c.printf("checking values %d vs %d \n", r_image[{
   -- Note: value of y must change in correspondence with the image bounds here.
@@ -120,22 +111,24 @@ where
   reads writes(r_image.value)
 do 
   var ts_start = c.legion_get_current_time_in_micros()
-  
+   
   var y0 : int32 = r_image.bounds.lo.y
+  regentlib.assert(y0 == 0, "y0 was not 0 in liftY")
+  -- we will need to apply the transform in x0 - size_x range.
   var x0 : int32 = r_image.bounds.lo.x
-  -- I think this should be always true?
-  --assert (y0 == 0 and x0 == 0)
 
-  var size_x : int32 = r_image.bounds.hi.x
-  var size_y : int32 = r_image.bounds.hi.y
+  var y1 : int32 = r_image.bounds.hi.y
+  var x1 : int32 = r_image.bounds.hi.x
+  
+  c.printf("low bounds are: %d, %d\n", r_image.bounds.lo.x, r_image.bounds.lo.y)
+  c.printf("hi bounds are %d, %d\n", x1, y1)
 
-  for y = step, size_y, step*2 do
+  for y = step, y1, step*2 do
     var base :int2d = {x0, y0 + y}
-    -- FIXME: Does this always stay within range?
     var c1base :int2d = {x0, y0 + y - step}
     var c2base :int2d = c1base
     
-    if (y + step) < size_y then 
+    if (y + step) < y1 then 
       c2base = {x0, y0 + y + step}
     end
       
@@ -143,23 +136,27 @@ do
 
     -- Linear filtering
     -- If we did only a few columns at a time? 
-    for x = 0, size_x, step do
+    
+    -- Because we have set base as x0, now we are just adding 0...width of
+    -- current region to x0.
+    for x = 0, x1-x0, step do
       r_image[{base.x + x, base.y}].value -= (r_image[c1base + {x,0}].value + r_image[c2base + {x,0}].value) / 2
       --c.printf("base, x: %d, y: %d; c1base, x: %d, y: %d; c2base, x: %d, y: %d;\n", base.x+x,base.y,c1base.x+x,c1base.y,c2base.x+x,c2base.y)
     end 
   end
   
   -- Do we really need a separate loop for this?
-  for y = step*2, size_y, step*2 do
+  for y = step*2, y1, step*2 do
     var base :int2d = {x0 , y0 + y}
     -- FIXME: Does this always stay within range?
     var g1base :int2d = {x0, y0 + y - step}
     var g2base :int2d = g1base 
-    if (y + step) < size_y then 
+    if (y + step) < y1 then 
       g2base = {x0, y0 + y + step}
     end
     
-    for x = 0, size_x, step do
+    -- Same reason as in the loop above.
+    for x = 0, x1-x0, step do
       r_image[base + {x, 0}].value += (r_image[g1base + {x,0}].value + r_image[g2base + {x,0}].value) / 4
       --c.printf("base, x: %d, y: %d; c1base, x: %d, y: %d; c2base, x: %d, y: %d;\n", base.x+x,base.y,g1base.x+x,g1base.y,g2base.x+x,g2base.y)
     end 
@@ -216,57 +213,47 @@ do
   return 1
 end
 
-task saveImage(r_image : region(ispace(int2d), Pixel),
-                filename : rawstring)
-where
-  reads(r_image.value)
-do
-  png.write_png_file(filename,
-                     __physical(r_image.value),
-                     __fields(r_image.value),
-                     r_image.bounds)
-end
-
 task unliftY(r_image    : region(ispace(int2d), Pixel), 
           step : int32)
 where
   reads writes(r_image.value)
 do 
   var ts_start = c.legion_get_current_time_in_micros()
-  
+   
   var y0 : int32 = r_image.bounds.lo.y
   var x0 : int32 = r_image.bounds.lo.x
-  -- I think this should be always true?
-  --assert (y0 == 0 && x0 == 0)
 
-  var size_x : int32 = r_image.bounds.hi.x
-  var size_y : int32 = r_image.bounds.hi.y
+  var y1 : int32 = r_image.bounds.hi.y
+  var x1 : int32 = r_image.bounds.hi.x
   
-  for y = step*2, size_y, step*2 do
+  --c.printf("low bounds are: %d, %d\n", r_image.bounds.lo.x, r_image.bounds.lo.y)
+  --c.printf("hi bounds are %d, %d\n", x1, y1)
+  
+  for y = step*2, y1, step*2 do
+
     -- exactly same as in lift step
     var base :int2d = {x0 , y0 + y}
     var g1base :int2d = {x0, y0 + y - step}
     var g2base :int2d = g1base 
-    if (y + step) < size_y then 
+    if (y + step) < y1 then 
       g2base = {x0, y0 + y + step}
     end
 
-    for x = 0, size_x, step do
+    for x = 0, x1-x0, step do
       r_image[base + {x, 0}].value -= ((r_image[g1base + {x,0}].value + r_image[g2base + {x,0}].value) / 4)
     end 
   end
 
-  for y = step, size_y, step*2 do 
+  for y = step, y1, step*2 do 
     var base :int2d = {x0, y0 + y}
     var c1base :int2d = {x0, y0 + y - step}
     var c2base :int2d = c1base
     
-    if (y + step) < size_y then 
+    if (y + step) < y1 then 
       c2base = {x0, y0 + y + step}
     end
-      
-    -- If we did only a few columns at a time? 
-    for x = 0, size_x, step do
+    
+    for x = 0, x1-x0, step do
       r_image[{base.x + x, base.y}].value += (r_image[c1base + {x,0}].value + r_image[c2base + {x,0}].value) / 2
     end 
   end
@@ -277,6 +264,17 @@ do
   return 1
 end
 
+
+task saveImage(r_image : region(ispace(int2d), Pixel),
+                filename : rawstring)
+where
+  reads(r_image.value)
+do
+  png.write_png_file(filename,
+                     __physical(r_image.value),
+                     __fields(r_image.value),
+                     r_image.bounds)
+end
 -- Modify this to salvage it somehow. Maybe write out to a file or something.
 task printOutImage(r_image: region(ispace(int2d), Pixel))
 where
@@ -331,13 +329,14 @@ do
 end
 
 task toplevel()
+
   var config : WaveletConfig
   config:initialize_from_command()
 
   -- FIX the config file to get this and stuff, but for now this is fine.
-  config.num_parallelism = 2
+  config.num_parallelism = 8
   
-  var edge : int32 = 2
+  var edge : int32 = 8
   var size_image = png.get_image_size(config.filename_image)
   
   var size_combined_image = {edge*size_image.x, edge*size_image.y}
@@ -387,14 +386,12 @@ task toplevel()
   var size_x : uint32 = r_image.bounds.hi.x
   var size_y : uint32 = r_image.bounds.hi.y
   
-  --printOutImage(r_image)
   -- Want to launch the while loop on each region separately.
   
   var x_parallelism = config.num_parallelism
   var x_coloring = c.legion_domain_point_coloring_create()
   var chunk_height = size_y / x_parallelism
 
-  ---- FIXME: Deal with the case when its not a perfect multiple and stuff.
   for i = 0, x_parallelism, 1 do
     var start_y = i*chunk_height
     var end_y = start_y + chunk_height - 1
@@ -419,6 +416,7 @@ task toplevel()
     if i == y_parallelism-1 then
       end_x = size_x
     end
+    c.printf("start_x = %d, end_x = %d\n", start_x, end_x)
     c.legion_domain_point_coloring_color_domain(y_coloring, [int1d](i), rect2d{{start_x, 0}, {end_x,size_y}})
   end
   var y_colors = ispace(int1d, y_parallelism) 
