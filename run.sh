@@ -6,8 +6,11 @@
 #PBS -d .
 
 LAUNCHER='mpirun --bind-to none -np 2' regent.py ~/wic/wavelet.rg -i \
-~/wic/images/gates.png -o ~/wic/test.png -ll:cpu 4 -ll:csize 1024 -hl:prof 1 \
--hl:spy -logfile wavelet_%.log
+~/wic/images/gates.png -ll:cpu 2 -ll:csize 1024
+
+#LAUNCHER='mpirun --bind-to none -np 2' regent.py ~/wic/wavelet.rg -i \
+#~/wic/images/gates.png -o ~/wic/test.png -ll:cpu 4 -ll:csize 1024 -hl:prof 1 \
+#-hl:spy -logfile wavelet_%.log
 
  
 
