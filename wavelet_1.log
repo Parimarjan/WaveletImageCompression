@@ -1,0 +1,54 @@
+[1 - 2aab3c007700] {3}{legion_spy}: Task Variant 586659 9 0 0 0 PartitionEqualShim::task
+[1 - 2aab3c007700] {3}{legion_spy}: Task ID Name 586659 PartitionEqualShim::task
+[1 - 2aab3c007700] {3}{legion_spy}: Task Variant 555831 10 0 0 0 PartitionByUnionShim::task
+[1 - 2aab3c007700] {3}{legion_spy}: Task ID Name 555831 PartitionByUnionShim::task
+[1 - 2aab3c007700] {3}{legion_spy}: Task Variant 582347 11 0 0 0 PartitionByIntersectionShim::task
+[1 - 2aab3c007700] {3}{legion_spy}: Task ID Name 582347 PartitionByIntersectionShim::task
+[1 - 2aab3c007700] {3}{legion_spy}: Task Variant 577802 12 0 0 0 PartitionByDifferenceShim::task
+[1 - 2aab3c007700] {3}{legion_spy}: Task ID Name 577802 PartitionByDifferenceShim::task
+[1 - 2aab3c007700] {3}{legion_spy}: Task Variant 539418 13 0 0 0 PartitionByFieldShim::task
+[1 - 2aab3c007700] {3}{legion_spy}: Task ID Name 539418 PartitionByFieldShim::task
+[1 - 2aab3c007700] {3}{legion_spy}: Task Variant 590467 14 0 0 0 PartitionByImageShim::task
+[1 - 2aab3c007700] {3}{legion_spy}: Task ID Name 590467 PartitionByImageShim::task
+[1 - 2aab3c007700] {3}{legion_spy}: Task Variant 509532 15 0 0 0 PartitionByPreimageShim::task
+[1 - 2aab3c007700] {3}{legion_spy}: Task ID Name 509532 PartitionByPreimageShim::task
+[1 - 2aab3c007700] {3}{legion_spy}: Task Variant 1 16 0 1 0 png.get_image_size
+[1 - 2aab3c007700] {3}{legion_spy}: Task ID Name 1 png.get_image_size
+[1 - 2aab3c007700] {3}{legion_spy}: Task Variant 2 17 0 1 0 initialize
+[1 - 2aab3c007700] {3}{legion_spy}: Task ID Name 2 initialize
+[1 - 2aab3c007700] {3}{legion_spy}: Task Variant 3 18 0 1 0 liftX
+[1 - 2aab3c007700] {3}{legion_spy}: Task ID Name 3 liftX
+[1 - 2aab3c007700] {3}{legion_spy}: Task Variant 4 19 0 1 0 liftY
+[1 - 2aab3c007700] {3}{legion_spy}: Task ID Name 4 liftY
+[1 - 2aab3c007700] {3}{legion_spy}: Task Variant 5 20 0 1 0 unliftX
+[1 - 2aab3c007700] {3}{legion_spy}: Task ID Name 5 unliftX
+[1 - 2aab3c007700] {3}{legion_spy}: Task Variant 6 21 0 1 0 saveImage
+[1 - 2aab3c007700] {3}{legion_spy}: Task ID Name 6 saveImage
+[1 - 2aab3c007700] {3}{legion_spy}: Task Variant 7 22 0 1 0 unliftY
+[1 - 2aab3c007700] {3}{legion_spy}: Task ID Name 7 unliftY
+[1 - 2aab3c007700] {3}{legion_spy}: Task Variant 8 23 0 1 0 printOutImage
+[1 - 2aab3c007700] {3}{legion_spy}: Task ID Name 8 printOutImage
+[1 - 2aab3c007700] {3}{legion_spy}: Task Variant 9 24 0 1 0 fill_image
+[1 - 2aab3c007700] {3}{legion_spy}: Task ID Name 9 fill_image
+[1 - 2aab3c007700] {3}{legion_spy}: Task Variant 10 25 0 1 0 sequential_fill_image
+[1 - 2aab3c007700] {3}{legion_spy}: Task ID Name 10 sequential_fill_image
+[1 - 2aab3c007700] {3}{legion_spy}: Task Variant 11 26 1 0 0 toplevel
+[1 - 2aab3c007700] {3}{legion_spy}: Task ID Name 11 toplevel
+[1 - 2aab0c008700] {3}{legion_spy}: Physical Instance 6000100010000000 1e00010000000000 0
+[1 - 2aab0c008700] {3}{legion_spy}: Physical Instance Region 6000100010000000 4 4 4
+[1 - 2aab0c008700] {3}{legion_spy}: Physical Instance Field 6000100010000000 101
+[1 - 2aab0c008700] {3}{legion_spy}: Physical Instance Creator 6000100010000000 130 1d00000000000001
+[1 - 2aab0c008700] {3}{legion_spy}: Physical Instance Creation Region 6000100010000000 4 4 4
+[1 - 2aab0c008700] {3}{legion_spy}: Instance Specialized Constraint 6000100010000000 1 0
+[1 - 2aab0c008700] {3}{legion_spy}: Instance Memory Constraint 6000100010000000 1
+[1 - 2aab0c008700] {3}{legion_spy}: Instance Field Constraint 6000100010000000 1 1 1
+[1 - 2aab0c008700] {3}{legion_spy}: Instance Field Constraint Field 6000100010000000 101
+[1 - 2aab0c008700] {3}{legion_spy}: Instance Ordering Constraint 6000100010000000 1 4
+[1 - 2aab0c008700] {3}{legion_spy}: Instance Ordering Constraint Dimension 6000100010000000 0
+[1 - 2aab0c008700] {3}{legion_spy}: Instance Ordering Constraint Dimension 6000100010000000 1
+[1 - 2aab0c008700] {3}{legion_spy}: Instance Ordering Constraint Dimension 6000100010000000 2
+[1 - 2aab0c008700] {3}{legion_spy}: Instance Ordering Constraint Dimension 6000100010000000 3
+[1 - 2aab0c008700] {3}{legion_spy}: Point Point 130 3
+[1 - 2aab0c008700] {3}{legion_spy}: Variant Decision 3 21
+[1 - 2aab0c008700] {3}{legion_spy}: Task Priority 3 0
+[1 - 2aab3c007700] {3}{legion_spy}: Task Processor 3 1d00010000000001
