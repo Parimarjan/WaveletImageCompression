@@ -335,9 +335,9 @@ task toplevel()
   config:initialize_from_command()
 
   -- FIX the config file to get this and stuff, but for now this is fine.
-  config.num_parallelism = 1
+  config.num_parallelism = 2
   
-  var edge : int32 = 4
+  var edge : int32 = 2
   var size_image = png.get_image_size(config.filename_image)
   
   var size_combined_image = {edge*size_image.x, edge*size_image.y}
@@ -350,6 +350,7 @@ task toplevel()
   
   var r_image = region(ispace(int2d, size_combined_image), Pixel) 
   sequential_fill_image(r_image, r_mini_image, edge)
+
   -- Let's do it in regent style. We will divide the combined image into
   -- color based squares with exact bounds (width and height from size_image)  
   --var coloring = c.legion_domain_point_coloring_create()   
