@@ -16,7 +16,6 @@ import "regent"
 -- Helper modules to handle PNG files and command line arguments
 local png        = require("png_util")
 local WaveletConfig = require("wavelet_config")
-local coloring   = require("coloring_util")
 
 -- Some C APIs
 local c     = regentlib.c
@@ -338,7 +337,7 @@ task toplevel()
   -- FIX the config file to get this and stuff, but for now this is fine.
   config.num_parallelism = 1
   
-  var edge : int32 = 2
+  var edge : int32 = 4
   var size_image = png.get_image_size(config.filename_image)
   
   var size_combined_image = {edge*size_image.x, edge*size_image.y}
