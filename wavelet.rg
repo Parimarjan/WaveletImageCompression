@@ -276,15 +276,22 @@ do
                      __fields(r_image.value),
                      r_image.bounds)
 
-  c.printf("After finishing save Image\n")
-  c.printf("dimensions are %d, %d\n", r_image.bounds.hi.x,r_image.bounds.hi.y)
+end
 
-  for i = 0, 200, 2 do
-    var index = {9500+i, 6000+i}
-    c.printf("value is %d\n", r_image[index].value)
+task checkImage(r_image : region(ispace(int2d), Pixel),
+                filename : rawstring)
+where
+  reads(r_image.value)
+do
+
+  c.printf("dimensions are %d, %d\n", r_image.bounds.hi.x,r_image.bounds.hi.y)
+    
+  for e in r_image do
+    regentlib.assert((r_image[e].value != 0), "pixel value was 0")
   end
 
 end
+
 -- Modify this to salvage it somehow. Maybe write out to a file or something.
 task printOutImage(r_image: region(ispace(int2d), Pixel))
 where
@@ -344,9 +351,9 @@ task toplevel()
   config:initialize_from_command()
 
   -- FIX the config file to get this and stuff, but for now this is fine.
-  config.num_parallelism = 16
+  config.num_parallelism = 32
   
-  var edge : int32 = 16
+  var edge : int32 = 64
   var size_image = png.get_image_size(config.filename_image)
   
   var size_combined_image = {edge*size_image.x, edge*size_image.y}
@@ -385,10 +392,11 @@ task toplevel()
     --fill_image(p_combined_image[i], r_mini_image)
   --end
     
-  var orig_x = r_image.bounds.hi.x
-  var orig_y = r_image.bounds.hi.y
-  saveImage(r_image, 'original_combined.png')
+  -- We don't really have to saveImage as long as we are checking the values
+  -- are valid.
+  --saveImage(r_image, 'original_combined.png')
   -- Should we destroy a partition after we are done using it?
+
   var step : uint32 = 1
   
   -- Once we divide r_image into colors, can we still get size of each color
@@ -481,12 +489,8 @@ task toplevel()
     wait_for(token)
   end
   
-  var new_x = r_image.bounds.hi.x
-  var new_y = r_image.bounds.hi.y
-
-
-  -- sanity check: what is happening with our massive image.
-  saveImage(r_image, 'unlifted_combined.png')
+  -- FIXME: saveImage if we need to present it.
+  -- saveImage(r_image, 'unlifted_combined.png')
  
 end
 
