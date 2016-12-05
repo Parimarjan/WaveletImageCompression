@@ -278,8 +278,7 @@ do
 
 end
 
-task checkImage(r_image : region(ispace(int2d), Pixel),
-                filename : rawstring)
+task checkImage(r_image : region(ispace(int2d), Pixel))
 where
   reads(r_image.value)
 do
@@ -350,13 +349,15 @@ end
 
 task toplevel()
 
+  var ts_start = c.legion_get_current_time_in_micros()
+
   var config : WaveletConfig
   config:initialize_from_command()
 
   -- FIX the config file to get this and stuff, but for now this is fine.
-  config.num_parallelism = 32
+  config.num_parallelism = 8
   
-  var edge : int32 = 64
+  var edge : int32 = 1028
   var size_image = png.get_image_size(config.filename_image)
   
   var size_combined_image = {edge*size_image.x, edge*size_image.y}
@@ -492,9 +493,12 @@ task toplevel()
     wait_for(token)
   end
   
+  var ts_end = c.legion_get_current_time_in_micros()
+  c.printf("main task took %0.4f\n", (ts_end - ts_start) * 1e-6)
+    
+  checkImage(r_image)
   -- FIXME: saveImage if we need to present it.
-  -- saveImage(r_image, 'unlifted_combined.png')
- 
+  -- saveImage(r_image, 'unlifted_combined.png') 
 end
 
 regentlib.start(toplevel)

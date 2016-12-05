@@ -10,9 +10,10 @@ rm ./run.sh.*
 rm ./logs/*.log
 
 
-LAUNCHER='mpirun --bind-to none -np 4 -npernode 1' regent.py ~/wic/wavelet.rg -i \
+LAUNCHER='mpirun --bind-to none -np 1 -npernode 1' regent.py ~/wic/wavelet.rg -i \
 ~/wic/images/gates.png -ll:cpu 8 -ll:csize 16000 \
--hl:prof 4 -logfile ~/wic/run/logs/wavelet_%.log
+
+#-hl:prof 4 -logfile ~/wic/run/logs/wavelet_%.log
 
 # Now we can generate legion prof files:
 #~/legion/tools/legion_prof.py wavelet_0.log
