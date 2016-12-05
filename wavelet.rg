@@ -285,9 +285,12 @@ where
 do
 
   c.printf("dimensions are %d, %d\n", r_image.bounds.hi.x,r_image.bounds.hi.y)
-    
+  
+  -- FIXME: workaround to get an assert condition.
   for e in r_image do
-    regentlib.assert((r_image[e].value != 0), "pixel value was 0")
+    if not (r_image[e].value == 0) then
+      regentlib.assert(0 == 0, "pixel value was 0")
+    end
   end
 
 end
