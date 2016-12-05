@@ -120,8 +120,8 @@ do
   var y1 : int32 = r_image.bounds.hi.y
   var x1 : int32 = r_image.bounds.hi.x
   
-  c.printf("low bounds are: %d, %d\n", r_image.bounds.lo.x, r_image.bounds.lo.y)
-  c.printf("hi bounds are %d, %d\n", x1, y1)
+  --c.printf("low bounds are: %d, %d\n", r_image.bounds.lo.x, r_image.bounds.lo.y)
+  --c.printf("hi bounds are %d, %d\n", x1, y1)
 
   for y = step, y1, step*2 do
     var base :int2d = {x0, y0 + y}
@@ -439,7 +439,7 @@ task toplevel()
     if i == y_parallelism-1 then
       end_x = size_x
     end
-    c.printf("start_x = %d, end_x = %d\n", start_x, end_x)
+    --c.printf("start_x = %d, end_x = %d\n", start_x, end_x)
     c.legion_domain_point_coloring_color_domain(y_coloring, [int1d](i), rect2d{{start_x, 0}, {end_x,size_y}})
   end
   var y_colors = ispace(int1d, y_parallelism) 
