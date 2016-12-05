@@ -355,9 +355,10 @@ task toplevel()
   config:initialize_from_command()
 
   -- FIX the config file to get this and stuff, but for now this is fine.
-  config.num_parallelism = 8
+  --config.num_parallelism = 8
+  c.printf("num parallelism is %d\n", config.num_parallelism)
   
-  var edge : int32 = 1028
+  var edge : int32 = 32
   var size_image = png.get_image_size(config.filename_image)
   
   var size_combined_image = {edge*size_image.x, edge*size_image.y}
@@ -368,33 +369,34 @@ task toplevel()
   -- Now we have the combined image, and we want to fill it up with the same
   -- data as in the original r_image.
   
+  -- Right now the region hasn't been given actual memory yet.
   var r_image = region(ispace(int2d, size_combined_image), Pixel) 
-  sequential_fill_image(r_image, r_mini_image, edge)
+  --sequential_fill_image(r_image, r_mini_image, edge)
 
   -- Let's do it in regent style. We will divide the combined image into
   -- color based squares with exact bounds (width and height from size_image)  
-  --var coloring = c.legion_domain_point_coloring_create()   
+  var coloring = c.legion_domain_point_coloring_create()   
   --fill it up horizontally and vertically separately.
  
-  --var color_count :int1d = 0
-  --for i = 0, edge, 1 do
-    --var new_y :int32 = i*size_image.y
-    --for j = 0, edge, 1 do
-       --var new_x :int32 = j*size_image.x  
-       --c.legion_domain_point_coloring_color_domain(coloring, color_count,
-       --rect2d {{new_x, new_y}, {new_x+size_image.x-1, new_y + size_image.y-1}})
-       --color_count += 1
-    --end
-  --end
+  var color_count :int1d = 0
+  for i = 0, edge, 1 do
+    var new_y :int32 = i*size_image.y
+    for j = 0, edge, 1 do
+       var new_x :int32 = j*size_image.x  
+       c.legion_domain_point_coloring_color_domain(coloring, color_count,
+       rect2d {{new_x, new_y}, {new_x+size_image.x-1, new_y + size_image.y-1}})
+       color_count += 1
+    end
+  end
 
-  --var colors = ispace(int1d, edge*edge)
-  --var p_combined_image = partition(disjoint, r_image, coloring, colors)
-  --c.legion_domain_point_coloring_destroy(coloring)
+  var colors = ispace(int1d, edge*edge)
+  var p_combined_image = partition(disjoint, r_image, coloring, colors)
+  c.legion_domain_point_coloring_destroy(coloring)
   
   ---- Parallelized initialization.
-  --for i = 0, edge*edge, 1 do
-    --fill_image(p_combined_image[i], r_mini_image)
-  --end
+  for i = 0, edge*edge, 1 do
+    fill_image(p_combined_image[i], r_mini_image)
+  end
     
   -- We don't really have to saveImage as long as we are checking the values
   -- are valid.

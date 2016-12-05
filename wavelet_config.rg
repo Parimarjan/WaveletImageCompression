@@ -6,13 +6,11 @@ local util = {}
 
 struct EdgeConfig
 {
-  filename_image  : rawstring,
-  filename_smooth : rawstring,
-  filename_edge   : rawstring,
-  save_smooth     : bool,
-  skip_smooth     : bool,
-  skip_suppress   : bool,
-  threshold       : double,
+  filename_image   : rawstring,
+  filename_lifted  : rawstring,
+  filename_unlifted  : rawstring,
+  filename_original  : rawstring,
+  skip_save     : bool,
   num_parallelism : int32,
 }
 
@@ -23,11 +21,11 @@ terra print_usage_and_abort()
   c.printf("OPTIONS\n")
   c.printf("  -h            : Print the usage and exit.\n")
   c.printf("  -i {file}     : Use {file} as input.\n")
-  c.printf("  -o {file}     : Save the final edge to {file}. Will use 'edge.png' by default.\n")
-  c.printf("  -s {file}     : Save the image after Gaussian smoothing to {file}.\n")
-  c.printf("  -t {value}    : Set {value} to the threshold.\n")
-  c.printf("  --no-smooth   : Skip Gaussian smoothing.\n")
-  c.printf("  --no-suppress : Skip non-maximum suppression.\n")
+  --c.printf("  -o {file}     : Save the final edge to {file}. Will use 'edge.png' by default.\n")
+  --c.printf("  -s {file}     : Save the image after Gaussian smoothing to {file}.\n")
+  --c.printf("  -t {value}    : Set {value} to the threshold.\n")
+  --c.printf("  --no-smooth   : Skip Gaussian smoothing.\n")
+  --c.printf("  --no-suppress : Skip non-maximum suppression.\n")
   c.abort()
 end
 
@@ -39,12 +37,6 @@ terra file_exists(filename : rawstring)
 end
 terra EdgeConfig:initialize_from_command()
   var filename_given = false
-
-  self.filename_edge = "edge.png"
-  self.save_smooth = false
-  self.skip_smooth = false
-  self.skip_suppress = false
-  self.threshold = 80
 
   var args = c.legion_runtime_get_input_args()
   var i = 1
@@ -59,24 +51,15 @@ terra EdgeConfig:initialize_from_command()
       end
       self.filename_image = args.argv[i]
       filename_given = true
-    elseif cstring.strcmp(args.argv[i], "-o") == 0 then
+    elseif cstring.strcmp(args.argv[i], "--no-save") == 0 then
+      self.skip_save = true
+    elseif cstring.strcmp(args.argv[i], "-p") == 0 then
       i = i + 1
-      self.filename_edge = args.argv[i]
-    elseif cstring.strcmp(args.argv[i], "-s") == 0 then
-      i = i + 1
-      self.filename_smooth = args.argv[i]
-      self.save_smooth = true
-    elseif cstring.strcmp(args.argv[i], "-t") == 0 then
-      i = i + 1
-      self.threshold = c.atof(args.argv[i])
-    elseif cstring.strcmp(args.argv[i], "--no-smooth") == 0 then
-      self.skip_smooth = true
-    elseif cstring.strcmp(args.argv[i], "--no-suppress") == 0 then
-      self.skip_suppress = true
+      self.num_parallelism = c.atof(args.argv[i])
     end
     i = i + 1
   end
-  if self.skip_smooth then self.save_smooth = false end
+
   if not filename_given then
     c.printf("Input image file must be given!\n\n")
     self.filename_image = "./images/gates.png"
