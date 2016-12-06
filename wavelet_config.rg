@@ -12,6 +12,7 @@ struct EdgeConfig
   filename_original  : rawstring,
   skip_save     : bool,
   num_parallelism : int32,
+  edge            : int32,
 }
 
 local cstring = terralib.includec("string.h")
@@ -56,6 +57,9 @@ terra EdgeConfig:initialize_from_command()
     elseif cstring.strcmp(args.argv[i], "-p") == 0 then
       i = i + 1
       self.num_parallelism = c.atof(args.argv[i])
+    elseif cstring.strcmp(args.argv[i], "-e") == 0 then
+      i = i + 1
+      self.edge = c.atof(args.argv[i])
     end
     i = i + 1
   end

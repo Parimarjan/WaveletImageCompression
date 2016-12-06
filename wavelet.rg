@@ -19,12 +19,13 @@ local WaveletConfig = require("wavelet_config")
 
 -- Some C APIs
 local c     = regentlib.c
-local sqrt  = regentlib.sqrt(double)
-local cmath = terralib.includec("math.h")
-local PI = cmath.M_PI
-local unistd = terralib.includec("unistd.h")
+--local sqrt  = regentlib.sqrt(double)
+--local cmath = terralib.includec("math.h")
+--local PI = cmath.M_PI
+--local unistd = terralib.includec("unistd.h")
 
 terra wait_for(x : int) return 1 end
+
 
 -- Field space for pixels
 -- Should be the only required field because we make changes in place.
@@ -32,6 +33,13 @@ fspace Pixel
 {
   value      : uint8;    -- value pixel in 8-bit gray scale
 }
+
+task block_task(r_image : region(ispace(int2d), Pixel))
+where
+  reads writes(r_image)
+do
+  return 1
+end
 
 task initialize(r_image : region(ispace(int2d), Pixel),
                 filename : rawstring)
@@ -61,7 +69,7 @@ do
     var base1 = base - step
     var base2 = base + step
     
-    -- Add parallelism at this stage. These two loops are just doing
+    -- FIXME: Add parallelism at this stage. These two loops are just doing
     -- reductions, especially after step = 2.
     
     var x : int32
@@ -92,12 +100,11 @@ do
 
   var ts_end = c.legion_get_current_time_in_micros()
   --c.printf("Lift x took %.3f sec.\n", (ts_end - ts_start) * 1e-6)
-  -- spurious dependencies.
   return 1
 end
 
 -- Vertical lifting. Slightly more complicated than Horizontal lifting.
---
+
 task liftY(r_image    : region(ispace(int2d), Pixel), 
           step : int32)
 where
@@ -368,8 +375,9 @@ task toplevel()
 
   config.skip_save = true
   c.printf("num parallelism is %d\n", config.num_parallelism)
+  c.printf("edges are %d\n", config.edge)
   
-  var edge : int32 = 128
+  var edge : int32 = config.edge
   var size_image = png.get_image_size(config.filename_image)
   
   -- Combined big image
@@ -411,7 +419,6 @@ task toplevel()
   if not config.skip_save then
    saveImage(r_image, 'original_combined.png')
   end
-  -- Should we destroy a partition after we are done using it?
 
   var step : uint32 = 1
   
@@ -470,15 +477,18 @@ task toplevel()
     end
 
     if (step < size_y) then
-     for i = 0, y_parallelism, 1 do
+      for i = 0, y_parallelism, 1 do
        liftY(p_y_combined_image[i], step)
       end
-     end
+    end
     step = step*2
     wait_for(token)
   end
   
-  -- saveImage(r_image, 'lifted_combined.png')
+  if not config.skip_save then
+   saveImage(r_image, 'lifted_combined.png')
+  end
+
   -- Let's do the unlifting to check if it works 
   -- Gets step to the highest value so we can run it in reverse....
     
@@ -499,21 +509,30 @@ task toplevel()
       end
     end
     step /= 2
-    wait_for(token)
   end
     
-  -- Need to put up some sort of barrier before printing times.
-  -- var ts_end = c.legion_get_current_time_in_micros()
-  -- c.printf("main task took %0.4f\n", (ts_end - ts_start) * 1e-6)
    
   -- whenever I call this then full r_image is being processed by each node I
   -- I think? So that would definitely fuck up the sizes and stuff.
   -- checkImage(r_image)
   -- FIXME: saveImage if we need to present it.
-
+  
+  -- Can I run this in parallel too?
   if not config.skip_save then
     saveImage(r_image, 'unlifted_combined.png') 
   end
+  
+  for i = 0, y_parallelism, 1 do
+   token += block_task(p_y_combined_image[i])
+  end
+
+  for i = 0, x_parallelism do
+    token += block_task(p_x_combined_image[i])
+  end
+
+  wait_for(token)
+  var ts_end = c.legion_get_current_time_in_micros()
+  c.printf("Total time: %.6f sec.\n", (ts_end - ts_start) * 1e-6)
 end
 
 regentlib.start(toplevel)
