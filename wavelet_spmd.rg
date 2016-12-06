@@ -54,6 +54,13 @@ do
   var size_x : int32 = r_image.bounds.hi.x
   var size_y : int32 = r_image.bounds.hi.y
   
+  --c.printf("checking values %d vs %d \n", r_image[{
+  -- Note: value of y must change in correspondence with the image bounds here.
+  
+  --for r in r_image do
+    ----c.printf("value at %d, %d is %d\n", r.x,r.y, r_image[r].value)
+  --end
+
   for y = r_image.bounds.lo.y, size_y+1, step do
     
     var base =  r_image.bounds.lo.x
@@ -345,7 +352,6 @@ task parallel_fill_image(r_image : region(ispace(int2d), Pixel),
 where 
   reads (r_mini_image), writes (r_image)
 do
-  -- c.printf("in parallel fill image\n")
   var new_y :int32 = r_image.bounds.lo.y
   var size_x :int32 = r_mini_image.bounds:size().x
   -- looping over for each x-edge.
@@ -363,16 +369,16 @@ end
 task toplevel()
     
   var ts_start = c.legion_get_current_time_in_micros()
+
   var config : WaveletConfig
   config:initialize_from_command()
 
-  config.skip_save = true
+  config.skip_save = false
   c.printf("num parallelism is %d\n", config.num_parallelism)
   
-  var edge : int32 = 128
+  var edge : int32 = 16
   var size_image = png.get_image_size(config.filename_image)
   
-  -- Combined big image
   var size_combined_image :int2d = {edge*size_image.x, edge*size_image.y}
 
   var r_mini_image = region(ispace(int2d, size_image), Pixel) 
@@ -404,7 +410,32 @@ task toplevel()
   for c in init_colors do
     parallel_fill_image(p_init_image[c], r_mini_image, edge)
   end
+
+  -- Let's do it in regent style. We will divide the combined image into
+  -- color based squares with exact bounds (width and height from size_image)  
+  --var coloring = c.legion_domain_point_coloring_create()   
+  --fill it up horizontally and vertically separately.
  
+  --var color_count :int1d = 0
+  --for i = 0, edge, 1 do
+    --var new_y :int32 = i*size_image.y
+    --for j = 0, edge, 1 do
+       --var new_x :int32 = j*size_image.x  
+       --c.legion_domain_point_coloring_color_domain(coloring, color_count,
+       --rect2d {{new_x, new_y}, {new_x+size_image.x-1, new_y + size_image.y-1}})
+       --color_count += 1
+    --end
+  --end
+
+  --var colors = ispace(int1d, edge*edge)
+  --var p_combined_image = partition(disjoint, r_image, coloring, colors)
+  --c.legion_domain_point_coloring_destroy(coloring)
+  
+  ------ Parallelized initialization.
+  --for i = 0, edge*edge, 1 do
+    --fill_image(p_combined_image[i], r_mini_image)
+  --end
+    
   -- We don't really have to saveImage as long as we are checking the values
   -- are valid.
 
@@ -461,21 +492,18 @@ task toplevel()
   
   var token = 0
 
+  __demand(__spmd)
   while (step < size_x or step < size_y) do
-    if (step < size_x) then
       -- Can I do partition.colors? why not?
-      for i = 0, x_parallelism, 1 do 
+      for i = 0, x_parallelism do 
          liftX(p_x_combined_image[i], step)
       end
-    end
 
-    if (step < size_y) then
-     for i = 0, y_parallelism, 1 do
+     for i = 0, x_parallelism do
        liftY(p_y_combined_image[i], step)
       end
-     end
     step = step*2
-    wait_for(token)
+    --wait_for(token)
   end
   
   -- saveImage(r_image, 'lifted_combined.png')
@@ -501,10 +529,9 @@ task toplevel()
     step /= 2
     wait_for(token)
   end
-    
-  -- Need to put up some sort of barrier before printing times.
-  -- var ts_end = c.legion_get_current_time_in_micros()
-  -- c.printf("main task took %0.4f\n", (ts_end - ts_start) * 1e-6)
+  
+  var ts_end = c.legion_get_current_time_in_micros()
+  c.printf("main task took %0.4f\n", (ts_end - ts_start) * 1e-6)
    
   -- whenever I call this then full r_image is being processed by each node I
   -- I think? So that would definitely fuck up the sizes and stuff.
