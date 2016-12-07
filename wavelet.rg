@@ -57,14 +57,21 @@ task liftX(r_image    : region(ispace(int2d), Pixel),
 where
   reads writes(r_image.value)
 do 
+  c.printf("in liftX!!\n")
   var ts_start = c.legion_get_current_time_in_micros()
   
-  var size_x : int32 = r_image.bounds.hi.x
-  var size_y : int32 = r_image.bounds.hi.y
+  -- Don't want this because we want the exact indices and not sizes.
+  --var size_x :int32 = r_mini_image.bounds:size().x
+  --var size_y :int32 = r_mini_image.bounds:size().y
   
-  for y = r_image.bounds.lo.y, size_y+1, step do
+  var start_x :int32 = r_image.bounds.lo.x
+  var start_y :int32 = r_image.bounds.lo.y
+  var end_x : int32 = r_image.bounds.hi.x 
+  var end_y : int32 = r_image.bounds.hi.y
+  
+  for y = r_image.bounds.lo.y, end_y+1, step do
     
-    var base =  r_image.bounds.lo.x
+    var base =  start_x
     regentlib.assert(base == 0, "base should always start with 0 in liftX")
     var base1 = base - step
     var base2 = base + step
@@ -73,7 +80,8 @@ do
     -- reductions, especially after step = 2.
     
     var x : int32
-    for x = step, size_x - step, step*2 do
+
+    for x = step, end_x + 1 - step, step*2 do
       r_image[{base+x, y}].value -= (r_image[{base1+x, y}].value + r_image[{base2+x, y}].value)/2
       --if step == 2 then
         --c.printf("base+x = %d, base1+x = %d, base2+x = %d\n", base+x, base1+x, base2+x)
@@ -81,25 +89,28 @@ do
     end
     
     -- Edge condition.
-    if (x < size_x) then
+    -- FIXME: try commenting this out? If x = end_x, then this will fuck things
+    -- up.
+    if (x < end_x + 1) then
       r_image[{base+x, y}].value -= r_image[{base1+x, y}].value 
     end
     
-    for x = step*2, size_x - step, step*2 do
+    for x = step*2, end_x + 1 - step, step*2 do
       --if step == 2 then
         --c.printf("base+x = %d, base1+x = %d, base2+x = %d\n", base+x, base1+x, base2+x)
       --end
       r_image[{base+x, y}].value += (r_image[{base1+x, y}].value + r_image[{base2+x, y}].value)/4 
     end
     
-    if (x < size_x) then
+    -- FIXME:
+    if (x < end_x + 1) then
       r_image[{base+x, y}].value += r_image[{base1+x, y}].value / 2 
     end
     
   end
 
   var ts_end = c.legion_get_current_time_in_micros()
-  --c.printf("Lift x took %.3f sec.\n", (ts_end - ts_start) * 1e-6)
+  c.printf("Lift x took %.3f sec.\n", (ts_end - ts_start) * 1e-6)
   return 1
 end
 
@@ -163,7 +174,7 @@ do
   end
 
   var ts_end = c.legion_get_current_time_in_micros()
-  --c.printf("Lift y took %.3f sec.\n", (ts_end - ts_start) * 1e-6)
+  c.printf("Lift y took %.3f sec.\n", (ts_end - ts_start) * 1e-6)
   -- spurious dependencies.
   return 1
 end
@@ -175,40 +186,42 @@ where
 do 
   var ts_start = c.legion_get_current_time_in_micros()
   
-  var size_x : int32 = r_image.bounds.hi.x
-  var size_y : int32 = r_image.bounds.hi.y
+  var start_x : int32 = r_image.bounds.lo.x
+  var start_y : int32 = r_image.bounds.lo.y
+  var end_x : int32 = r_image.bounds.hi.x
+  var end_y : int32 = r_image.bounds.hi.y
 
-  for y = r_image.bounds.lo.y, size_y+1, step do
+  for y = start_y, end_y+1, step do
     
   --for y = r_image.bounds.lo.y + 0, size_y, step do
     -- just x values will be affected by these here.
-    var base = r_image.bounds.lo.x
+    var base = start_x
     var base1 = base - step
     var base2 = base + step
     
     var x : int32
     -- even loop?
-    for x = step*2, size_x - step, step*2 do
+    for x = step*2, end_x + 1 - step, step*2 do
       r_image[{base+x, y}].value -= (r_image[{base1+x, y}].value + r_image[{base2+x, y}].value)/4 
     end
     
-    if (x < size_x) then
+    -- FIXME: Uncomment this or fix this somehow.
+    if (x < end_x+1) then
       r_image[{base+x, y}].value -= r_image[{base1+x, y}].value / 2 
     end
     
-    for x = step, size_x - step, step*2 do
+    for x = step, end_x + 1 - step, step*2 do
       r_image[{base+x, y}].value += (r_image[{base1+x, y}].value + r_image[{base2+x, y}].value)/2
     end
     
     -- Edge condition.
-    if (x < size_x) then
+    if (x < end_x+1) then
       r_image[{base+x, y}].value += r_image[{base1+x, y}].value 
-    end
-    
+    end    
   end
 
   var ts_end = c.legion_get_current_time_in_micros()
-  --c.printf("UnLift x took %.3f sec.\n", (ts_end - ts_start) * 1e-6)
+  c.printf("UnLift x took %.3f sec.\n", (ts_end - ts_start) * 1e-6)
   -- spurious dependencies.
   return 1
 end
@@ -218,6 +231,7 @@ task unliftY(r_image    : region(ispace(int2d), Pixel),
 where
   reads writes(r_image.value)
 do 
+
   var ts_start = c.legion_get_current_time_in_micros()
    
   var y0 : int32 = r_image.bounds.lo.y
@@ -352,19 +366,28 @@ task parallel_fill_image(r_image : region(ispace(int2d), Pixel),
 where 
   reads (r_mini_image), writes (r_image)
 do
-  -- c.printf("in parallel fill image\n")
-  var new_y :int32 = r_image.bounds.lo.y
-  var size_x :int32 = r_mini_image.bounds:size().x
-  -- looping over for each x-edge.
+  var low_bounds = r_image.bounds.lo
+  var hi_bounds = r_image.bounds.hi
 
+  -- c.printf("r_image low bounds = %d, %d; high bounds = %d,%d\n",
+  -- low_bounds.x,low_bounds.y, hi_bounds.x, hi_bounds.y)
+
+  var new_y :int32 = r_image.bounds.lo.y
+
+  -- mini_image is the full image so size_x makes sense.
+  var size_x :int32 = r_mini_image.bounds:size().x
+
+  -- looping over for each x-edge.
   for j = 0, edge, 1 do
      var new_x :int32 = j*size_x
      -- Now, we can fill up the image r_combined with r_image stuff
+
      for pixel in r_mini_image do
        var index : int2d = {new_x, new_y} + pixel 
        r_image[index].value = r_mini_image[pixel].value
      end 
   end
+  c.printf("exiting parallel fill image\n")
 end
 
 task toplevel()
@@ -392,26 +415,35 @@ task toplevel()
   -- Right now the region hasn't been given actual memory yet.
   var r_image = region(ispace(int2d, size_combined_image), Pixel) 
   
+   sequential_fill_image(r_image, r_mini_image, edge)
   -- Parallel init attempt 2
-  var init_coloring = c.legion_domain_point_coloring_create()
-  -- At every step/color we move down by the height of the image.
-  -- It will be an edge by edge square of images, so go down edge times.
+  --var init_coloring = c.legion_domain_point_coloring_create()
+  ---- At every step/color we move down by the height of the image.
+  ---- It will be an edge by edge square of images, so go down edge times.
+    
+  --var size_mini_y = r_mini_image.bounds:size().y
+  --regentlib.assert(size_mini_y == size_image.y, "sizes y not same!")
+  --for i = 0, edge, 1 do
+    --var start_y = i*size_mini_y    
+    ---- var end_y = start_y + size_mini_y
+    --var end_y = start_y + size_mini_y - 1
+    --var end_x = size_combined_image.x - 1
 
-  for i = 0, edge, 1 do
-    var start_y = i*size_image.y
-    var end_y = start_y + size_image.y - 1
-    -- can add an assert that end_y should divide size of size_combined_image.y     
-    c.legion_domain_point_coloring_color_domain(init_coloring, [int1d] (i),rect2d {{0, start_y}, {size_combined_image.x,end_y}})
-  end
+    ---- FIXME: Assuming the last value is included when partitioning.
+    --c.legion_domain_point_coloring_color_domain(init_coloring, [int1d] (i),rect2d {{0, start_y}, {end_x,end_y}})
+  --end
 
-  var init_colors = ispace(int1d, edge)
-  var p_init_image = partition(disjoint, r_image, init_coloring, init_colors)
-  c.legion_domain_point_coloring_destroy(init_coloring)
-  -- Another alternative is to equal divide big image and call seq_fill_image
-  -- on that.
-  for c in init_colors do
-    parallel_fill_image(p_init_image[c], r_mini_image, edge)
-  end
+  --var init_colors = ispace(int1d, edge)
+
+  ---- FIXME: it would throw an error if this was not disjoint right?
+  --var p_init_image = partition(disjoint, r_image, init_coloring, init_colors)
+  --c.legion_domain_point_coloring_destroy(init_coloring)
+
+  ---- Another alternative is to equal divide big image and call seq_fill_image
+  ---- on that.
+  --for c in init_colors do
+    --parallel_fill_image(p_init_image[c], r_mini_image, edge)
+  --end
  
   -- We don't really have to saveImage as long as we are checking the values
   -- are valid.
@@ -432,16 +464,29 @@ task toplevel()
   -- Want to launch the while loop on each region separately.
   
   var x_parallelism = config.num_parallelism
-  var x_coloring = c.legion_domain_point_coloring_create()
-  var chunk_height = size_y / x_parallelism
 
+  -- FIXME: Might need to adjust this to be the same size for spmd?
+  var x_coloring = c.legion_domain_point_coloring_create()
+  
+  var chunk_precise = [float](size_y) / x_parallelism
+  c.printf("chunk precise is %0.4f\n", chunk_precise)
+
+  var chunk_height = size_y / x_parallelism
+  c.printf("chunk height is %d\n", chunk_height)
+
+  -- FIXME: Try to not include the final region at all? That should fix errors
+  -- that go over the bound.
+  --
+  
   for i = 0, x_parallelism, 1 do
     var start_y = i*chunk_height
     var end_y = start_y + chunk_height - 1
+    
+    -- FIXME: maybe I shouldn't be doing this?
+    --if i == x_parallelism-1 then
+      --end_y = size_y
+    --end
 
-    if i == x_parallelism-1 then
-      end_y = size_y
-    end
     c.legion_domain_point_coloring_color_domain(x_coloring, [int1d] (i),rect2d {{0, start_y}, {size_x,end_y}})
   end
 
@@ -451,14 +496,19 @@ task toplevel()
   
   var y_parallelism = config.num_parallelism
   var y_coloring = c.legion_domain_point_coloring_create()
+
+  var precise_chunk = [float](size_x) / y_parallelism
+  c.printf("precise chunk is %0.4f\n", precise_chunk)
   var chunk_width = size_x / y_parallelism
+  c.printf("chunk width is %d\n", chunk_width)
   
   for i = 0, y_parallelism, 1 do
     var start_x = i*chunk_width
     var end_x = start_x + chunk_width - 1
-    if i == y_parallelism-1 then
-      end_x = size_x
-    end
+
+    --if i == y_parallelism-1 then
+      --end_x = size_x
+    --end
     --c.printf("start_x = %d, end_x = %d\n", start_x, end_x)
     c.legion_domain_point_coloring_color_domain(y_coloring, [int1d](i), rect2d{{start_x, 0}, {end_x,size_y}})
   end
@@ -467,9 +517,10 @@ task toplevel()
   c.legion_domain_point_coloring_destroy(y_coloring)
   
   var token = 0
-
-  while (step < size_x or step < size_y) do
-    if (step < size_x) then
+  
+  -- FIXME: This is just an arbitrary limit being put on step.
+  while (step < size_x/2 or step < size_y/2) do
+    if (step < size_x/2) then
       -- Can I do partition.colors? why not?
       for i = 0, x_parallelism, 1 do 
          liftX(p_x_combined_image[i], step)
@@ -482,7 +533,6 @@ task toplevel()
       end
     end
     step = step*2
-    wait_for(token)
   end
   
   if not config.skip_save then
