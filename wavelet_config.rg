@@ -13,6 +13,7 @@ struct EdgeConfig
   skip_save     : bool,
   num_parallelism : int32,
   edge            : int32,
+  nodes           : int32,
 }
 
 local cstring = terralib.includec("string.h")
@@ -60,6 +61,9 @@ terra EdgeConfig:initialize_from_command()
     elseif cstring.strcmp(args.argv[i], "-e") == 0 then
       i = i + 1
       self.edge = c.atof(args.argv[i])
+    elseif cstring.strcmp(args.argv[i], "-n") == 0 then
+      i = i + 1
+      self.nodes = c.atof(args.argv[i])
     end
     i = i + 1
   end
